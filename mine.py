@@ -6,6 +6,8 @@ import platform
 import json
 from argparse import ArgumentParser
 import warnings
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait as wait_tasks
 
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
@@ -19,6 +21,8 @@ system = platform.system()
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # Constant
+MAX_WORKERS = 10
+
 WAX_USER_NAME_INPUT_XPATH = '/html/body/div[1]/div/div/div/div[1]/div/div[4]/div/div/div/div[1]/div[1]/input'
 WAX_PASSWORD_INPUT_XPATH = '/html/body/div[1]/div/div/div/div[1]/div/div[4]/div/div/div/div[1]/div[2]/input'
 WAX_LOG_IN_BUTTON_XPATH = '/html/body/div[1]/div/div/div/div[1]/div/div[4]/div/div/div/div[4]/button'
@@ -65,9 +69,9 @@ def print_with_user(username, *args):
     print('[INFO] miner "{}" >>> '.format(username), *args)
 
 
-def random_sleep(min_sec=5, max_sec=10):
+def random_sleep(username='SYSTEM', min_sec=5, max_sec=10):
     sec = randint(min_sec, max_sec)
-    debug_print('random sleep for {} seconds'.format(sec))
+    debug_print_with_user(username, 'random sleep for {} seconds'.format(sec))
     sleep(sec)
 
 
@@ -109,7 +113,7 @@ def load_conf():
     return data
 
 
-def check_exists_by_xpath(xpath):
+def check_exists_by_xpath(driver: WebDriver, xpath):
     try:
         driver.find_element_by_xpath(xpath)
     except NoSuchElementException:
@@ -117,18 +121,20 @@ def check_exists_by_xpath(xpath):
     return True
 
 
-def wait_for_element(xpath, refresh_count=30, refresh_on_timeout=False):
+def wait_for_element(driver: WebDriver, xpath, refresh_count=30, refresh_on_timeout=False, username='SYSTEM'):
     count = 0
-    while not check_exists_by_xpath(xpath):
-        debug_print("Element not found, retrying")
+    while not check_exists_by_xpath(driver, xpath):
+        debug_print_with_user(username, "Element not found, retrying")
         sleep(1)
         count += 1
         if count == refresh_count:
             if refresh_on_timeout:
-                debug_print("Element not found after " + str(count) + " tries, reloading website\n---" + str(xpath))
+                debug_print_with_user(username, "Element not found after " + str(count) +
+                                      " tries, reloading website\n---" + str(xpath))
                 driver.refresh()
             else:
-                debug_print("Element not found after " + str(count) + " tries, exiting\n---" + str(xpath))
+                debug_print_with_user(username, "Element not found after " + str(count) +
+                                      " tries, exiting\n---" + str(xpath))
                 return False
     return True
 
@@ -146,19 +152,19 @@ def login_wax(driver: WebDriver, username: str, password: str, login_method: str
 def connect_wax(driver: WebDriver, username: str, password: str) -> bool:
     print_with_user(username, "Connect wax")
 
-    random_sleep()
+    random_sleep(username)
 
     debug_print_with_user(username, 'Waiting for wax user login')
-    if wait_for_element(WAX_USER_NAME_INPUT_XPATH, 10, True):
+    if wait_for_element(driver, WAX_USER_NAME_INPUT_XPATH, 10, True, username=username):
         debug_print_with_user(username, 'Typing wax user name')
-        random_sleep(min_sec=2, max_sec=5)
+        random_sleep(username, min_sec=2, max_sec=5)
         driver.find_element_by_xpath(WAX_USER_NAME_INPUT_XPATH).send_keys(username)
 
         debug_print_with_user(username, 'Typing wax user password')
-        random_sleep(min_sec=2, max_sec=5)
+        random_sleep(username, min_sec=2, max_sec=5)
         driver.find_element_by_xpath(WAX_PASSWORD_INPUT_XPATH).send_keys(password)
         debug_print_with_user(username, 'Login wax user')
-        random_sleep(min_sec=1, max_sec=2)
+        random_sleep(username, min_sec=1, max_sec=2)
         driver.find_element_by_xpath(WAX_LOG_IN_BUTTON_XPATH).click()
         return True
     else:
@@ -169,20 +175,20 @@ def connect_wax(driver: WebDriver, username: str, password: str) -> bool:
 def connect_wax_with_reddit(driver: WebDriver, username: str, password: str) -> bool:
     print("- Login with Reddit -")
     while driver.current_url == "https://all-access.wax.io/":
-        random_sleep()
-        if wait_for_element('//*[@id="reddit-social-btn"]', 30, True):
+        random_sleep(username)
+        if wait_for_element(driver, '//*[@id="reddit-social-btn"]', 30, True, username=username):
             # Click on reddit button | https://all-access.wax.io/
             driver.find_element_by_xpath('//*[@id="reddit-social-btn"]').click()
-            random_sleep()
+            random_sleep(username)
 
-    if wait_for_element('//*[@id="loginUsername"]', 5):
+    if wait_for_element(driver, '//*[@id="loginUsername"]', 5, username=username):
         driver.find_element_by_xpath('//*[@id="loginUsername"]').send_keys(username)
         driver.find_element_by_xpath('//*[@id="loginPassword"]').send_keys(password)
 
         driver.find_element_by_xpath('/html/body/div/main/div[1]/div/div[2]/form/fieldset[5]/button').click()
 
     # Click on allow button | allow wax to access to reddit
-    if wait_for_element('/html/body/div[3]/div/div[2]/form/div/input[1]'):
+    if wait_for_element(driver, '/html/body/div[3]/div/div[2]/form/div/input[1]', username=username):
         driver.find_element_by_xpath('/html/body/div[3]/div/div[2]/form/div/input[1]').click()
 
     else:
@@ -196,12 +202,12 @@ def start_alien_world(driver: WebDriver, username: str) -> bool:
 
     print_with_user(username, "Starting AlienWorlds")
     driver.get("https://play.alienworlds.io/")
-    random_sleep()
+    random_sleep(username)
 
     # Click on play now
-    if wait_for_element(AW_PLAY_NOW_BUTTON_XPATH):
+    if wait_for_element(driver, AW_PLAY_NOW_BUTTON_XPATH, username=username):
         driver.find_element_by_xpath(AW_PLAY_NOW_BUTTON_XPATH).click()
-        random_sleep(min_sec=10)
+        random_sleep(username, min_sec=10)
 
         return True
 
@@ -215,23 +221,21 @@ def mine(driver: WebDriver, username: str):
     while True:
         wait_for_next_mine(driver, username)
         debug_print_with_user(username, 'Waiting for mine button')
-        if (
-                wait_for_element(AW_MINE_BUTTON_TEXT_XPATH,
-                                 5, False)):
+        if wait_for_element(driver, AW_MINE_BUTTON_TEXT_XPATH, 5, False, username=username):
             # Mine button
             if driver.find_element_by_xpath(AW_MINE_BUTTON_TEXT_XPATH).text == "Mine":
                 debug_print_with_user(username, 'Click on mine button')
                 driver.find_element_by_xpath(AW_MINE_BUTTON_XPATH).click()
-                random_sleep()
+                random_sleep(username)
 
         debug_print_with_user(username, 'Waiting for claim mine button')
         if (
-        wait_for_element(AW_CLAIM_MINE_BUTTON_TEXT_XPATH, 5, False)):
+        wait_for_element(driver, AW_CLAIM_MINE_BUTTON_TEXT_XPATH, 5, False, username=username)):
             # Claim mine button
             if driver.find_element_by_xpath(AW_CLAIM_MINE_BUTTON_TEXT_XPATH).text == "Claim Mine":
                 debug_print_with_user(username, 'Click on claim mine button')
                 driver.find_element_by_xpath(AW_CLAIM_MINE_BUTTON_XPATH).click()
-                random_sleep()
+                random_sleep(username)
 
                 debug_print_with_user(username, 'Switch to approve transaction page')
                 while len(driver.window_handles) == 1:
@@ -243,21 +247,21 @@ def mine(driver: WebDriver, username: str):
                         confirm_page = handle
 
                 driver.switch_to.window(confirm_page)
-                random_sleep(min_sec=3)
+                random_sleep(username, min_sec=3)
 
                 debug_print_with_user(username, 'Waiting for wax approve tx button')
-                if wait_for_element(WAX_APPROVE_TX_BUTTON_XPATH, 30, False):
+                if wait_for_element(driver, WAX_APPROVE_TX_BUTTON_XPATH, 30, False, username=username):
                     debug_print_with_user(username, 'Click on wax approve tx button')
                     driver.find_element_by_xpath(WAX_APPROVE_TX_BUTTON_XPATH).click()
-                    random_sleep()
+                    random_sleep(username)
 
                     driver.switch_to.window(main_page)
 
                     # Mine success
-                    if wait_for_element(AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH, 10, False):
+                    if wait_for_element(driver, AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH, 10, False, username=username):
                         print_with_user(username, 'Receiving bonus...')
 
-                        if check_exists_by_xpath(AW_TLM_BALANCE_TEXT_XPATH):
+                        if check_exists_by_xpath(driver, AW_TLM_BALANCE_TEXT_XPATH):
                             balance = driver.find_element_by_xpath(AW_TLM_BALANCE_TEXT_XPATH).text
                             print_with_user(username, "Current balance: " + str(balance) + " Trilium")
                         wait_for_next_mine(driver, username)
@@ -266,11 +270,11 @@ def mine(driver: WebDriver, username: str):
                     confirm_page.close()
                     debug_print_with_user(username, "Stuck on confirmation popup, closing popup and retrying")
 
-        random_sleep()
+        random_sleep(username)
 
 
 def wait_for_next_mine(driver: WebDriver, username: str):
-    if not wait_for_element(AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH, 10):
+    if not wait_for_element(driver, AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH, 20, username=username):
         return
     hour_str = driver.find_element_by_xpath(AW_CHARGE_TIME_HOUR_TEXT_XPATH).text
     min_str = driver.find_element_by_xpath(AW_CHARGE_TIME_MIN_TEXT_XPATH).text
@@ -278,7 +282,19 @@ def wait_for_next_mine(driver: WebDriver, username: str):
     charge_time = int(hour_str) * 3600 + int(min_str) * 60 + int(sec_str)
     print_with_user(username, 'Waiting for the next mining. Charge time: {}'.format(charge_time))
     sleep(charge_time)
-    random_sleep()
+    random_sleep(username)
+
+
+def run_task(driver: WebDriver, username: str, password: str, login_method: str):
+    if not login_wax(driver, username, password, login_method):
+        print("Error, can't log in")
+        exit()
+
+    if not start_alien_world(driver, username):
+        print("Error while starting Alien Worlds")
+        exit()
+
+    mine(driver, username)
 
 
 if __name__ == '__main__':
@@ -288,27 +304,24 @@ if __name__ == '__main__':
     debug_print("firefox_binary=" + conf["firefox_path"])
     debug_print("executable_path=" + conf["geckodriver_path"])
 
-    for account in conf['accounts']:
-        debug_print('account info: {}'.format(account))
-        username, password, login_method = account['username'], account['password'], account['login_method']
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix='Miner') as pool:
+        all_tasks = []
+        for account in conf['accounts']:
+            debug_print('account info: {}'.format(account))
+            username, password, login_method = account['username'], account['password'], account['login_method']
 
-        # Initialize webdriver for each account
-        profile = webdriver.FirefoxProfile()
+            # Initialize webdriver for each account
+            profile = webdriver.FirefoxProfile()
 
-        options = Options()
-        options.headless = args.headless
-        options.binary_location = conf["firefox_path"]
+            options = Options()
+            options.headless = args.headless
+            options.binary_location = conf["firefox_path"]
 
-        driver = webdriver.Firefox(options=options, firefox_profile=profile, executable_path=conf["geckodriver_path"])
-        driver.set_window_size(1280, 1280)
-        debug_print('driver session {} used for account {}'.format(driver.session_id, username))
+            driver = webdriver.Firefox(options=options, firefox_profile=profile,
+                                       executable_path=conf["geckodriver_path"])
+            driver.set_window_size(1280, 1280)
+            debug_print('driver session {} used for account {}'.format(driver.session_id, username))
 
-        if not login_wax(driver, username, password, login_method):
-            print("Error, can't log in")
-            exit()
+            all_tasks.append(pool.submit(run_task, driver, username, password, login_method))
 
-        if not start_alien_world(driver, username):
-            print("Error while starting Alien Worlds")
-            exit()
-
-        mine(driver, username)
+        wait_tasks(all_tasks)
