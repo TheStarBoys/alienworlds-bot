@@ -9,6 +9,7 @@ import warnings
 
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.webdriver import WebDriver
 from selenium.common.exceptions import NoSuchElementException
 
 from fake_useragent import UserAgent
@@ -48,6 +49,15 @@ def parse_args():
 def debug_print(data):
     if args.verbose:
         print("[DEBUG] " + data)
+
+
+def debug_print_with_user(username, data):
+    if args.verbose:
+        print('[DEBUG] miner "{}" >>> {}'.format(username, data))
+
+
+def print_with_user(username, *args):
+    print('[INFO] miner "{}" >>> '.format(username), *args)
 
 
 def random_sleep(min_sec=5, max_sec=10):
@@ -118,42 +128,40 @@ def wait_for_element(xpath, refresh_count=30, refresh_on_timeout=False):
     return True
 
 
-def login_wax() -> bool:
-    print("- Loggin in -")
+def login_wax(driver: WebDriver, username: str, password: str, login_method: str) -> bool:
+    print_with_user(username, "Loggin in")
     driver.get("https://all-access.wax.io/")
 
-    if conf["login_method"] == 'wax':
-        return connect_wax()
-    elif conf["login_method"] == 'reddit':
-        return connect_wax_with_reddit()
+    if login_method == 'wax':
+        return connect_wax(driver, username, password)
+    elif login_method == 'reddit':
+        return connect_wax_with_reddit(driver, username, password)
 
 
-def connect_wax() -> bool:
-    print("- Login -")
+def connect_wax(driver: WebDriver, username: str, password: str) -> bool:
+    print_with_user(username, "Connect wax")
 
     random_sleep()
 
-    debug_print('Waiting for wax user login')
+    debug_print_with_user(username, 'Waiting for wax user login')
     if wait_for_element(WAX_USER_NAME_INPUT_XPATH, 10, True):
-        debug_print('Typing wax user name')
+        debug_print_with_user(username, 'Typing wax user name')
         random_sleep(min_sec=2, max_sec=5)
-        driver.find_element_by_xpath(WAX_USER_NAME_INPUT_XPATH).send_keys(
-            conf["username"])
+        driver.find_element_by_xpath(WAX_USER_NAME_INPUT_XPATH).send_keys(username)
 
-        debug_print('Typing wax user password')
+        debug_print_with_user(username, 'Typing wax user password')
         random_sleep(min_sec=2, max_sec=5)
-        driver.find_element_by_xpath(WAX_PASSWORD_INPUT_XPATH).send_keys(
-            conf["password"])
-        debug_print('Login wax user')
+        driver.find_element_by_xpath(WAX_PASSWORD_INPUT_XPATH).send_keys(password)
+        debug_print_with_user(username, 'Login wax user')
         random_sleep(min_sec=1, max_sec=2)
         driver.find_element_by_xpath(WAX_LOG_IN_BUTTON_XPATH).click()
         return True
     else:
-        debug_print("Can't login with wax")
+        debug_print_with_user(username, "Can't login with wax")
         return False
 
 
-def connect_wax_with_reddit() -> bool:
+def connect_wax_with_reddit(driver: WebDriver, username: str, password: str) -> bool:
     print("- Login with Reddit -")
     while driver.current_url == "https://all-access.wax.io/":
         random_sleep()
@@ -163,8 +171,8 @@ def connect_wax_with_reddit() -> bool:
             random_sleep()
 
     if wait_for_element('//*[@id="loginUsername"]', 5):
-        driver.find_element_by_xpath('//*[@id="loginUsername"]').send_keys(conf["username"])
-        driver.find_element_by_xpath('//*[@id="loginPassword"]').send_keys(conf["password"])
+        driver.find_element_by_xpath('//*[@id="loginUsername"]').send_keys(username)
+        driver.find_element_by_xpath('//*[@id="loginPassword"]').send_keys(password)
 
         driver.find_element_by_xpath('/html/body/div/main/div[1]/div/div[2]/form/fieldset[5]/button').click()
 
@@ -177,11 +185,11 @@ def connect_wax_with_reddit() -> bool:
         return False
 
 
-def start_alien_world() -> bool:
+def start_alien_world(driver: WebDriver, username: str) -> bool:
     while driver.current_url != "https://wallet.wax.io/dashboard":
         sleep(1)
 
-    print("- Starting AlienWorlds -")
+    print_with_user(username, "Starting AlienWorlds")
     driver.get("https://play.alienworlds.io/")
     random_sleep()
 
@@ -195,31 +203,31 @@ def start_alien_world() -> bool:
     return False
 
 
-def mine():
-    print("- Start mining -")
+def mine(driver: WebDriver, username: str):
+    print_with_user(username, "Start mining")
     main_page = driver.current_window_handle
 
     while True:
-        debug_print('Waiting for mine button')
+        debug_print_with_user(username, 'Waiting for mine button')
         if (
                 wait_for_element(AW_MINE_BUTTON_TEXT_XPATH,
                                  5, False)):
             # Mine button
             if driver.find_element_by_xpath(AW_MINE_BUTTON_TEXT_XPATH).text == "Mine":
-                debug_print('Click on mine button')
+                debug_print_with_user(username, 'Click on mine button')
                 driver.find_element_by_xpath(AW_MINE_BUTTON_XPATH).click()
                 random_sleep()
 
-        debug_print('Waiting for claim mine button')
+        debug_print_with_user(username, 'Waiting for claim mine button')
         if (
         wait_for_element(AW_CLAIM_MINE_BUTTON_TEXT_XPATH, 5, False)):
             # Claim mine button
             if driver.find_element_by_xpath(AW_CLAIM_MINE_BUTTON_TEXT_XPATH).text == "Claim Mine":
-                debug_print('Click on claim mine button')
+                debug_print_with_user(username, 'Click on claim mine button')
                 driver.find_element_by_xpath(AW_CLAIM_MINE_BUTTON_XPATH).click()
                 random_sleep()
 
-                debug_print('Switch to approve transaction page')
+                debug_print_with_user(username, 'Switch to approve transaction page')
                 while len(driver.window_handles) == 1:
                     sleep(1)
 
@@ -231,21 +239,25 @@ def mine():
                 driver.switch_to.window(confirm_page)
                 random_sleep(min_sec=3)
 
-                debug_print('Waiting for wax approve tx button')
+                debug_print_with_user(username, 'Waiting for wax approve tx button')
                 if wait_for_element(WAX_APPROVE_TX_BUTTON_XPATH, 30, False):
-                    debug_print('Click on wax approve tx button')
+                    debug_print_with_user(username, 'Click on wax approve tx button')
                     driver.find_element_by_xpath(WAX_APPROVE_TX_BUTTON_XPATH).click()
                     random_sleep()
 
                     driver.switch_to.window(main_page)
 
+                    print_with_user(username, 'Receiving bonus...')
+
                     if check_exists_by_xpath(AW_TLM_BALANCE_TEXT_XPATH):
                         balance = driver.find_element_by_xpath(AW_TLM_BALANCE_TEXT_XPATH).text
-                        print("== Current balance : " + str(balance) + " Trilium ==")
+                        print_with_user(username, "Current balance: " + str(balance) + " Trilium ==")
+
+                    # TODO print('- Waiting for the next mining -')
                 else:
                     driver.switch_to.window(main_page)
                     confirm_page.close()
-                    debug_print("Stuck on confirmation popup, closing popup and retrying")
+                    debug_print_with_user(username, "Stuck on confirmation popup, closing popup and retrying")
 
         random_sleep()
 
@@ -254,25 +266,30 @@ if __name__ == '__main__':
     args = parse_args()
     conf = load_conf()
 
-    # Initialize webdriver
-    profile = webdriver.FirefoxProfile()
-
-    options = Options()
-    options.headless = args.headless
-    options.binary_location = conf["firefox_path"]
-
     debug_print("firefox_binary=" + conf["firefox_path"])
     debug_print("executable_path=" + conf["geckodriver_path"])
-    driver = webdriver.Firefox(options=options, firefox_profile=profile, executable_path=conf["geckodriver_path"])
-    driver.set_window_size(1280, 1280)
-    # Initialize webdriver
 
-    if not login_wax():
-        print("Error, can't log in")
-        exit()
+    for account in conf['accounts']:
+        debug_print('account info: {}'.format(account))
+        username, password, login_method = account['username'], account['password'], account['login_method']
 
-    if not start_alien_world():
-        print("Error while starting Alien Worlds")
-        exit()
+        # Initialize webdriver for each account
+        profile = webdriver.FirefoxProfile()
 
-    mine()
+        options = Options()
+        options.headless = args.headless
+        options.binary_location = conf["firefox_path"]
+
+        driver = webdriver.Firefox(options=options, firefox_profile=profile, executable_path=conf["geckodriver_path"])
+        driver.set_window_size(1280, 1280)
+        debug_print('driver session {} used for account {}'.format(driver.session_id, username))
+
+        if not login_wax(driver, username, password, login_method):
+            print("Error, can't log in")
+            exit()
+
+        if not start_alien_world(driver, username):
+            print("Error while starting Alien Worlds")
+            exit()
+
+        mine(driver, username)

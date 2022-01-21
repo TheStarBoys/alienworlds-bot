@@ -1,6 +1,15 @@
 {
-  "username": "<Your username>",
-  "password": "<Your password>",
-  "login_method": "<Your connection method>",
+  "accounts": [
+    {
+      "username": "<Your username 1>",
+      "password": "<Your password 1>",
+      "login_method": "<Your connection method>"
+    },
+    {
+      "username": "<Your username 2>",
+      "password": "<Your password 3>",
+      "login_method": "<Your connection method>"
+    }
+  ],
   "firefox_path": ""
 }
