@@ -29,6 +29,11 @@ AW_MINE_BUTTON_XPATH = '/html/body/div/div[3]/div[1]/div/div[3]/div[5]/div[2]/di
 AW_MINE_BUTTON_TEXT_XPATH = AW_MINE_BUTTON_XPATH + '/span'
 AW_CLAIM_MINE_BUTTON_XPATH = '/html/body/div/div[3]/div[1]/div/div[3]/div[5]/div[2]/div/div/div/div/div'
 AW_CLAIM_MINE_BUTTON_TEXT_XPATH = AW_CLAIM_MINE_BUTTON_XPATH + '/span'
+AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH = '/html/body/div/div[3]/div[1]/div/div[3]/div[5]/div[2]/p[2]'
+AW_CHARGE_TIME_HOUR_TEXT_XPATH = '/html/body/div/div[3]/div[1]/div/div[3]/div[5]/div[2]/p[1]/span[1]'
+AW_CHARGE_TIME_MIN_TEXT_XPATH = '/html/body/div/div[3]/div[1]/div/div[3]/div[5]/div[2]/p[1]/span[2]'
+AW_CHARGE_TIME_SEC_TEXT_XPATH = '/html/body/div/div[3]/div[1]/div/div[3]/div[5]/div[2]/p[1]/span[3]'
+
 AW_TLM_BALANCE_TEXT_XPATH = '/html/body/div/div[3]/div[1]/div/div[3]/div[1]/div/div[2]/p[1]'
 
 # Global variables
@@ -208,6 +213,7 @@ def mine(driver: WebDriver, username: str):
     main_page = driver.current_window_handle
 
     while True:
+        wait_for_next_mine(driver, username)
         debug_print_with_user(username, 'Waiting for mine button')
         if (
                 wait_for_element(AW_MINE_BUTTON_TEXT_XPATH,
@@ -247,19 +253,32 @@ def mine(driver: WebDriver, username: str):
 
                     driver.switch_to.window(main_page)
 
-                    print_with_user(username, 'Receiving bonus...')
+                    # Mine success
+                    if wait_for_element(AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH, 10, False):
+                        print_with_user(username, 'Receiving bonus...')
 
-                    if check_exists_by_xpath(AW_TLM_BALANCE_TEXT_XPATH):
-                        balance = driver.find_element_by_xpath(AW_TLM_BALANCE_TEXT_XPATH).text
-                        print_with_user(username, "Current balance: " + str(balance) + " Trilium ==")
-
-                    # TODO print('- Waiting for the next mining -')
+                        if check_exists_by_xpath(AW_TLM_BALANCE_TEXT_XPATH):
+                            balance = driver.find_element_by_xpath(AW_TLM_BALANCE_TEXT_XPATH).text
+                            print_with_user(username, "Current balance: " + str(balance) + " Trilium")
+                        wait_for_next_mine(driver, username)
                 else:
                     driver.switch_to.window(main_page)
                     confirm_page.close()
                     debug_print_with_user(username, "Stuck on confirmation popup, closing popup and retrying")
 
         random_sleep()
+
+
+def wait_for_next_mine(driver: WebDriver, username: str):
+    if not wait_for_element(AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH, 10):
+        return
+    hour_str = driver.find_element_by_xpath(AW_CHARGE_TIME_HOUR_TEXT_XPATH).text
+    min_str = driver.find_element_by_xpath(AW_CHARGE_TIME_MIN_TEXT_XPATH).text
+    sec_str = driver.find_element_by_xpath(AW_CHARGE_TIME_SEC_TEXT_XPATH).text
+    charge_time = int(hour_str) * 3600 + int(min_str) * 60 + int(sec_str)
+    print_with_user(username, 'Waiting for the next mining. Charge time: {}'.format(charge_time))
+    sleep(charge_time)
+    random_sleep()
 
 
 if __name__ == '__main__':
