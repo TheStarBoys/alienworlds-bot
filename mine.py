@@ -272,7 +272,7 @@ def mine(driver: WebDriver, username: str):
     while True:
         wait_for_next_mine(driver, username)
         debug_print_with_user(username, 'Waiting for mine button')
-        if wait_for_element(driver, AW_MINE_BUTTON_TEXT_XPATH, 5, False, username=username):
+        if wait_for_element(driver, AW_MINE_BUTTON_TEXT_XPATH, 5, True, username=username):
             # Mine button
             if driver.find_element_by_xpath(AW_MINE_BUTTON_TEXT_XPATH).text == "Mine":
                 debug_print_with_user(username, 'Click on mine button')
@@ -324,13 +324,19 @@ def mine(driver: WebDriver, username: str):
         random_sleep(username)
 
 
-def wait_for_next_mine(driver: WebDriver, username: str):
+def wait_for_next_mine(driver: WebDriver, username: str, timeout=10):
     if not wait_for_element(driver, AW_NEXT_MINE_ATTEMPTS_TEXT_XPATH, 20, username=username):
         return
-    hour_str = driver.find_element_by_xpath(AW_CHARGE_TIME_HOUR_TEXT_XPATH).text
-    min_str = driver.find_element_by_xpath(AW_CHARGE_TIME_MIN_TEXT_XPATH).text
-    sec_str = driver.find_element_by_xpath(AW_CHARGE_TIME_SEC_TEXT_XPATH).text
-    charge_time = int(hour_str) * 3600 + int(min_str) * 60 + int(sec_str)
+
+    charge_time = 0
+    while charge_time == 0 and timeout > 0:
+        hour_str = driver.find_element_by_xpath(AW_CHARGE_TIME_HOUR_TEXT_XPATH).text
+        min_str = driver.find_element_by_xpath(AW_CHARGE_TIME_MIN_TEXT_XPATH).text
+        sec_str = driver.find_element_by_xpath(AW_CHARGE_TIME_SEC_TEXT_XPATH).text
+        debug_print_with_user(username, 'hour: {}, min: {}, sec: {}'.format(hour_str, min_str, sec_str))
+        charge_time = int(hour_str) * 3600 + int(min_str) * 60 + int(sec_str)
+        timeout -= 1
+        sleep(1)
     print_with_user(username, 'Waiting for the next mining. Charge time: {}'.format(charge_time))
     sleep(charge_time)
     random_sleep(username)
