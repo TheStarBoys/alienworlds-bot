@@ -128,7 +128,7 @@ def wait_for_element(driver: WebDriver, xpath, refresh_count=30, refresh_on_time
         debug_print_with_user(username, "Element not found, retrying")
         sleep(1)
         count += 1
-        if count == refresh_count:
+        if count >= refresh_count:
             if refresh_on_timeout:
                 debug_print_with_user(username, "Element not found after " + str(count) +
                                       " tries, reloading website\n---" + str(xpath))
@@ -329,14 +329,18 @@ def wait_for_next_mine(driver: WebDriver, username: str, timeout=10):
         return
 
     charge_time = 0
-    while charge_time == 0 and timeout > 0:
-        hour_str = driver.find_element_by_xpath(AW_CHARGE_TIME_HOUR_TEXT_XPATH).text
-        min_str = driver.find_element_by_xpath(AW_CHARGE_TIME_MIN_TEXT_XPATH).text
-        sec_str = driver.find_element_by_xpath(AW_CHARGE_TIME_SEC_TEXT_XPATH).text
-        debug_print_with_user(username, 'hour: {}, min: {}, sec: {}'.format(hour_str, min_str, sec_str))
-        charge_time = int(hour_str) * 3600 + int(min_str) * 60 + int(sec_str)
-        timeout -= 1
-        sleep(1)
+    try:
+        while charge_time == 0 and timeout > 0:
+            hour_str = driver.find_element_by_xpath(AW_CHARGE_TIME_HOUR_TEXT_XPATH).text
+            min_str = driver.find_element_by_xpath(AW_CHARGE_TIME_MIN_TEXT_XPATH).text
+            sec_str = driver.find_element_by_xpath(AW_CHARGE_TIME_SEC_TEXT_XPATH).text
+            charge_time = int(hour_str) * 3600 + int(min_str) * 60 + int(sec_str)
+            debug_print_with_user(username, 'hour: {}, min: {}, sec: {}, charge_time: {}'.
+                                  format(hour_str, min_str, sec_str, charge_time))
+            timeout -= 1
+            sleep(1)
+    except Exception:
+        pass
     print_with_user(username, 'Waiting for the next mining. Charge time: {}'.format(charge_time))
     sleep(charge_time)
     random_sleep(username)
