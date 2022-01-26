@@ -26,6 +26,7 @@ MAX_WORKERS = 10
 WAX_USER_NAME_INPUT_XPATH = '/html/body/div[1]/div/div/div/div[1]/div/div[4]/div/div/div/div[1]/div[1]/input'
 WAX_PASSWORD_INPUT_XPATH = '/html/body/div[1]/div/div/div/div[1]/div/div[4]/div/div/div/div[1]/div[2]/input'
 WAX_LOG_IN_BUTTON_XPATH = '/html/body/div[1]/div/div/div/div[1]/div/div[4]/div/div/div/div[4]/button'
+WAX_LOG_IN_AUTHENTICATION = '/html/body/div[1]/div/section/div[2]/div/div[1]/span'
 WAX_APPROVE_TX_BUTTON_XPATH = '/html/body/div/div/section/div[2]/div/div[5]/button'
 
 AW_PLAY_NOW_BUTTON_XPATH = '/html/body/div/div[3]/div/div[1]/div/div/div/div/span'
@@ -140,13 +141,21 @@ def wait_for_element(driver: WebDriver, xpath, refresh_count=30, refresh_on_time
 
 
 def login_wax(driver: WebDriver, username: str, password: str, login_method: str) -> bool:
-    print_with_user(username, "Loggin in")
+    print_with_user(username, "Login in")
     driver.get("https://all-access.wax.io/")
 
+    if load_user_cookies(driver, username):
+        return True
+    logged_in = False
     if login_method == 'wax':
-        return connect_wax(driver, username, password)
+        logged_in = connect_wax(driver, username, password)
     elif login_method == 'reddit':
-        return connect_wax_with_reddit(driver, username, password)
+        logged_in = connect_wax_with_reddit(driver, username, password)
+
+    if logged_in:
+        store_user_cookies(driver, username)
+
+    return logged_in
 
 
 def connect_wax(driver: WebDriver, username: str, password: str) -> bool:
@@ -166,6 +175,16 @@ def connect_wax(driver: WebDriver, username: str, password: str) -> bool:
         debug_print_with_user(username, 'Login wax user')
         random_sleep(username, min_sec=1, max_sec=2)
         driver.find_element_by_xpath(WAX_LOG_IN_BUTTON_XPATH).click()
+        # If we get challenge, manually handle it.
+        if wait_for_element(driver, WAX_LOG_IN_AUTHENTICATION, 10, False, username=username):
+            print_with_user(username, 'Please resolve challenge manually within 10 minutes')
+            duration = 600
+            while duration > 0 and check_exists_by_xpath(driver, WAX_LOG_IN_AUTHENTICATION):
+                sleep(0.1)
+                duration -= 0.1
+            # If time out, report failure
+            if duration <= 0:
+                return False
         return True
     else:
         debug_print_with_user(username, "Can't login with wax")
@@ -194,6 +213,38 @@ def connect_wax_with_reddit(driver: WebDriver, username: str, password: str) -> 
     else:
         print("Error, can't find Reddit login button")
         return False
+
+
+# Returns true if load success
+def load_user_cookies(driver: WebDriver, username: str):
+    debug_print_with_user(username, 'Trying load user cookies, current page: {}'.format(driver.current_url))
+    driver.delete_all_cookies()
+    try:
+        file = open('data/accounts/' + username + '/wax_cookies.json', 'r')
+    except Exception as e:
+        print_with_user(username, 'Open cookies file error: {}'.format(e))
+        return False
+    for cookie in json.load(file):
+        try:
+            driver.add_cookie(cookie)
+        except Exception as e:
+            print_with_user(username, 'Load cookies error: {}'.format(e))
+    file.close()
+    # get again
+    driver.get("https://all-access.wax.io/")
+    return True
+
+
+def store_user_cookies(driver: WebDriver, username: str):
+    debug_print_with_user(username, 'Trying store user cookies')
+    if not os.path.exists('data/accounts/' + username):
+        os.makedirs('data/accounts/' + username)
+    try:
+        with open('data/accounts/' + username + '/wax_cookies.json', 'x') as file:
+            cookies = driver.get_cookies()
+            json.dump(cookies, file)
+    except Exception as e:
+        print_with_user('Error: {}'.format(e))
 
 
 def start_alien_world(driver: WebDriver, username: str) -> bool:
@@ -288,10 +339,12 @@ def wait_for_next_mine(driver: WebDriver, username: str):
 def run_task(driver: WebDriver, username: str, password: str, login_method: str):
     if not login_wax(driver, username, password, login_method):
         print("Error, can't log in")
+        driver.close()
         exit()
 
     if not start_alien_world(driver, username):
         print("Error while starting Alien Worlds")
+        driver.close()
         exit()
 
     mine(driver, username)
