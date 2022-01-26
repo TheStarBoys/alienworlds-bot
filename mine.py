@@ -1,4 +1,5 @@
 from time import sleep
+import time
 from random import randint
 import os
 import pprint
@@ -58,16 +59,16 @@ def parse_args():
 
 def debug_print(data):
     if args.verbose:
-        print("[DEBUG] " + data)
+        print("[DEBUG] {}: {}".format(time.ctime(time.time()), data))
 
 
 def debug_print_with_user(username, data):
     if args.verbose:
-        print('[DEBUG] miner "{}" >>> {}'.format(username, data))
+        print('[DEBUG] {}: miner "{}" >>> {}'.format(time.ctime(time.time()), username, data))
 
 
 def print_with_user(username, *args):
-    print('[INFO] miner "{}" >>> '.format(username), *args)
+    print('[INFO] {}: miner "{}" >>> '.format(time.ctime(time.time()), username), *args)
 
 
 def random_sleep(username='SYSTEM', min_sec=5, max_sec=10):
