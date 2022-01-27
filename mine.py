@@ -134,6 +134,7 @@ def wait_for_element(driver: WebDriver, xpath, refresh_count=30, refresh_on_time
                 debug_print_with_user(username, "Element not found after " + str(count) +
                                       " tries, reloading website\n---" + str(xpath))
                 driver.refresh()
+                return False
             else:
                 debug_print_with_user(username, "Element not found after " + str(count) +
                                       " tries, exiting\n---" + str(xpath))
