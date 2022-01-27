@@ -282,8 +282,7 @@ def mine(driver: WebDriver, username: str):
                 random_sleep(username)
 
         debug_print_with_user(username, 'Waiting for claim mine button')
-        if (
-        wait_for_element(driver, AW_CLAIM_MINE_BUTTON_TEXT_XPATH, 5, False, username=username)):
+        if wait_for_element(driver, AW_CLAIM_MINE_BUTTON_TEXT_XPATH, 5, False, username=username):
             # Claim mine button
             if driver.find_element_by_xpath(AW_CLAIM_MINE_BUTTON_TEXT_XPATH).text == "Claim Mine":
                 debug_print_with_user(username, 'Click on claim mine button')
@@ -319,9 +318,9 @@ def mine(driver: WebDriver, username: str):
                             print_with_user(username, "Current balance: " + str(balance) + " Trilium")
                         wait_for_next_mine(driver, username)
                 else:
-                    driver.switch_to.window(main_page)
-                    confirm_page.close()
                     debug_print_with_user(username, "Stuck on confirmation popup, closing popup and retrying")
+                    driver.close()  # Close confirm page
+                    driver.switch_to.window(main_page)
 
         random_sleep(username)
 
@@ -351,12 +350,12 @@ def wait_for_next_mine(driver: WebDriver, username: str, timeout=10):
 def run_task(driver: WebDriver, username: str, password: str, login_method: str):
     if not login_wax(driver, username, password, login_method):
         print("Error, can't log in")
-        driver.close()
+        driver.quit()
         exit()
 
     if not start_alien_world(driver, username):
         print("Error while starting Alien Worlds")
-        driver.close()
+        driver.quit()
         exit()
 
     mine(driver, username)
