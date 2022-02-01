@@ -267,17 +267,18 @@ def start_alien_world(driver: WebDriver, username: str) -> bool:
     return False
 
 
-def mine(driver: WebDriver, username: str):
+def mine(driver: WebDriver, username: str, max_run_time=7200):
     print_with_user(username, "Start mining")
     main_page = driver.current_window_handle
 
-    while True:
+    while max_run_time > 0:
+        now = time.time()
         wait_for_next_mine(driver, username)
         debug_print_with_user(username, 'Waiting for mine button')
         if wait_for_element(driver, AW_MINE_BUTTON_TEXT_XPATH, 5, True, username=username):
             # Mine button
             if driver.find_element_by_xpath(AW_MINE_BUTTON_TEXT_XPATH).text == "Mine":
-                debug_print_with_user(username, 'Click on mine button')
+                print_with_user(username, 'Click on mine button')
                 driver.find_element_by_xpath(AW_MINE_BUTTON_XPATH).click()
                 random_sleep(username)
 
@@ -285,7 +286,7 @@ def mine(driver: WebDriver, username: str):
         if wait_for_element(driver, AW_CLAIM_MINE_BUTTON_TEXT_XPATH, 5, False, username=username):
             # Claim mine button
             if driver.find_element_by_xpath(AW_CLAIM_MINE_BUTTON_TEXT_XPATH).text == "Claim Mine":
-                debug_print_with_user(username, 'Click on claim mine button')
+                print_with_user(username, 'Click on claim mine button')
                 driver.find_element_by_xpath(AW_CLAIM_MINE_BUTTON_XPATH).click()
                 random_sleep(username)
 
@@ -303,7 +304,7 @@ def mine(driver: WebDriver, username: str):
 
                 debug_print_with_user(username, 'Waiting for wax approve tx button')
                 if wait_for_element(driver, WAX_APPROVE_TX_BUTTON_XPATH, 30, False, username=username):
-                    debug_print_with_user(username, 'Click on wax approve tx button')
+                    print_with_user(username, 'Click on wax approve tx button')
                     driver.find_element_by_xpath(WAX_APPROVE_TX_BUTTON_XPATH).click()
                     random_sleep(username)
 
@@ -323,6 +324,9 @@ def mine(driver: WebDriver, username: str):
                     driver.switch_to.window(main_page)
 
         random_sleep(username)
+        max_run_time -= time.time() - now
+        debug_print_with_user(username, 'Remaining run time: {}'.format(max_run_time))
+    print_with_user(username, 'The mining process exits. Schedule the next mining')
 
 
 def wait_for_next_mine(driver: WebDriver, username: str, timeout=10):
@@ -344,13 +348,14 @@ def wait_for_next_mine(driver: WebDriver, username: str, timeout=10):
         pass
     print_with_user(username, 'Waiting for the next mining. Charge time: {}'.format(charge_time))
     sleep(charge_time)
-    random_sleep(username)
+    print_with_user(username, 'Charging completes')
 
 
 def run_task(driver: WebDriver, username: str, password: str, login_method: str):
     if not login_wax(driver, username, password, login_method):
         print("Error, can't log in")
         driver.quit()
+
         exit()
 
     if not start_alien_world(driver, username):
@@ -359,6 +364,7 @@ def run_task(driver: WebDriver, username: str, password: str, login_method: str)
         exit()
 
     mine(driver, username)
+    driver.quit()
 
 
 if __name__ == '__main__':
@@ -368,24 +374,26 @@ if __name__ == '__main__':
     debug_print("firefox_binary=" + conf["firefox_path"])
     debug_print("executable_path=" + conf["geckodriver_path"])
 
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix='Miner') as pool:
-        all_tasks = []
-        for account in conf['accounts']:
-            debug_print('account info: {}'.format(account))
-            username, password, login_method = account['username'], account['password'], account['login_method']
+    while True:
+        print_with_user('SYSTEM', 'Reloading tasks to avoid the error "out of memory"')
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix='Miner') as pool:
+            all_tasks = []
+            for account in conf['accounts']:
+                debug_print('account info: {}'.format(account))
+                username, password, login_method = account['username'], account['password'], account['login_method']
 
-            # Initialize webdriver for each account
-            profile = webdriver.FirefoxProfile()
+                # Initialize webdriver for each account
+                profile = webdriver.FirefoxProfile()
 
-            options = Options()
-            options.headless = args.headless
-            options.binary_location = conf["firefox_path"]
+                options = Options()
+                options.headless = args.headless
+                options.binary_location = conf["firefox_path"]
 
-            driver = webdriver.Firefox(options=options, firefox_profile=profile,
-                                       executable_path=conf["geckodriver_path"])
-            driver.set_window_size(1280, 1280)
-            debug_print('driver session {} used for account {}'.format(driver.session_id, username))
+                driver = webdriver.Firefox(options=options, firefox_profile=profile,
+                                           executable_path=conf["geckodriver_path"])
+                driver.set_window_size(1280, 1280)
+                debug_print('driver session {} used for account {}'.format(driver.session_id, username))
 
-            all_tasks.append(pool.submit(run_task, driver, username, password, login_method))
+                all_tasks.append(pool.submit(run_task, driver, username, password, login_method))
 
-        wait_tasks(all_tasks)
+            wait_tasks(all_tasks)
